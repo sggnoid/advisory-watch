@@ -1,0 +1,41 @@
+name: watch
+
+on:
+  schedule:
+    - cron: "7,22,37,52 * * * *"
+  workflow_dispatch:
+    inputs:
+      test_alert:
+        description: Send a test alert
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: watch
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      NTFY_URL: ${{ secrets.NTFY_URL }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: python3 -m unittest discover -s tests
+      - if: ${{ inputs.test_alert }}
+        run: python3 watch.py --test-alert
+      - if: ${{ !inputs.test_alert }}
+        run: python3 watch.py --notify
+      - if: ${{ !inputs.test_alert }}
+        run: |
+          if ! git diff --quiet watch.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -am "Move advisory position"
+            git push
+          fi
